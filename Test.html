@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Test Oyunu (Zıplama 5 Tuşu)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #cccccc; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        let camera, scene, renderer, playerGroup;
+        // HAREKET durumları (2, 8, 4, 6)
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        // ROTASYON durumları (1, 3, 7, 9)
+        let rotateLeft = false;
+        let rotateRight = false;
+        let rotateUp = false;
+        let rotateDown = false;
+        // ZIPLAMA durumu (5)
+        let canJump = true; // Sadece yerdeyken zıplayabilir
+        
+        let clock = new THREE.Clock();
+        const movementSpeed = 8; 
+        const rotationSpeed = 1; 
+
+        // YER ÇEKİMİ VE ZIPLAMA DEĞİŞKENLERİ
+        const gravity = 20; // Yerçekimi ivmesi
+        const jumpForce = 10; // Zıplama gücü
+        let verticalVelocity = 0; // Mevcut dikey hız
+        const groundY = 1.7; // Zemin seviyesi (Kamera yüksekliği)
+
+        init();
+        animate();
+
+        function init() {
+            // SAHNE
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0); 
+
+            // KAMERA VE GRUP
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 0); 
+
+            playerGroup = new THREE.Group();
+            playerGroup.position.set(0, groundY, 5); // Başlangıçta zemin seviyesinde
+            playerGroup.add(camera);
+            scene.add(playerGroup);
+
+            // RENDERER, ZEMİN, KÜP, IŞIKLANDIRMA (Aynı kaldı)
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const floorGeometry = new THREE.PlaneGeometry(100, 100, 10, 10);
+            const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(0, 0.5, -5); 
+            scene.add(cube);
+            
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 7);
+            scene.add(directionalLight);
+
+            // --- TUŞ KONTROLLERİ ---
+            const onKeyDown = (event) => {
+                switch (event.key) {
+                    // HAREKET VE ROTASYON TUŞLARI
+                    case '8': moveBackward = true; break; 
+                    case '2': moveForward = true; break; 
+                    case '4': moveLeft = true; break; 
+                    case '6': moveRight = true; break; 
+                    case '1': rotateLeft = true; break;
+                    case '3': rotateRight = true; break;
+                    case '7': rotateUp = true; break;
+                    case '9': rotateDown = true; break;
+                    
+                    // YENİ: ZIPLAMA TUŞU
+                    case '5':
+                        if (canJump) {
+                            verticalVelocity = jumpForce; // Yukarı doğru kuvvet uygula
+                            canJump = false;
+                        }
+                        break;
+                }
+            };
+
+            const onKeyUp = (event) => {
+                switch (event.key) {
+                    case '8': moveBackward = false; break; 
+                    case '2': moveForward = false; break; 
+                    case '4': moveLeft = false; break; 
+                    case '6': moveRight = false; break; 
+                    case '1': rotateLeft = false; break;
+                    case '3': rotateRight = false; break;
+                    case '7': rotateUp = false; break;
+                    case '9': rotateDown = false; break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ANA OYUN DÖNGÜSÜ
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            
+            // --- 1. ROTASYON KONTROLÜ (Aynı kaldı) ---
+            let rotationY = 0; 
+            let rotationX = 0; 
+
+            if (rotateLeft) rotationY = rotationSpeed * delta;
+            if (rotateRight) rotationY = -rotationSpeed * delta;
+            if (rotateUp) rotationX = rotationSpeed * delta;
+            if (rotateDown) rotationX = -rotationSpeed * delta;
+            
+            playerGroup.rotation.y += rotationY;
+            camera.rotation.x += rotationX;
+            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+
+            // --- 2. HAREKET KONTROLÜ (Yatay) ---
+            let velocityZ = 0; 
+            let velocityX = 0; 
+
+            if (moveForward) velocityZ -= movementSpeed * delta; 
+            if (moveBackward) velocityZ += movementSpeed * delta; 
+            if (moveLeft) velocityX -= movementSpeed * delta; 
+            if (moveRight) velocityX += movementSpeed * delta; 
+            
+            playerGroup.translateZ(velocityZ);
+            playerGroup.translateX(velocityX);
+            
+            // --- 3. DİKEY HAREKET (Yerçekimi ve Zıplama) ---
+            
+            // Yerçekimini hıza uygula:
+            verticalVelocity -= gravity * delta;
+            
+            // Hızı pozisyona uygula:
+            playerGroup.position.y += verticalVelocity * delta;
+
+            // Zemin Kontrolü:
+            if (playerGroup.position.y < groundY) {
+                playerGroup.position.y = groundY; // Yere sabitle
+                verticalVelocity = 0; // Hızı sıfırla
+                canJump = true; // Tekrar zıplayabilir
+            }
+            
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
